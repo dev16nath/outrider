@@ -1,26 +1,695 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Surfaces */
+  --color-cream: #fffcf3;
+  --color-sand: #f7f5e8;
+  --color-shell: #eeece0;
+  --color-paper: #fffcf5;
+  --color-rule: #e6e4d5;
+  --color-rule-warm: #e2dcc2;
+  /* The frame pulse. Same warm family as the border it runs on, several
+     steps down: separation here has to come from DARKNESS, since the card
+     behind the border is lighter than the border itself, so a paler tone
+     would vanish into the card instead of reading against it. */
+  --color-rule-warm-deep: #a3946a;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Ink */
+  --color-ink: #272727;
+  --color-ink-nav: #363439;
+
+  /* Accents */
+  --color-signal-orange: #ffa347;
+  /* Button rest / hover pair: rests a shade deeper than the brand orange
+     so the hover has somewhere to brighten to. */
+  --color-signal-orange-deep: #f0912f;
+  --color-signal-orange-bright: #ffb864;
+  /* The button's edge snake. Lighter than both fills so it still reads
+     once the cursor brightens the button to -bright, but saturated —
+     lightening the fill by raising all three channels toward paper gives
+     a tint that reads as plain white at pixel size, however orange its
+     hue technically is. The blue channel is what has to stay down. */
+  --color-signal-orange-gold: #ffcf5c;
+  --color-signal-blue: #478dff;
+  --color-signal-green: #669e41;
+
+  /* Type */
+  --font-display: var(--font-zarathustra);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  /* ---------------------------------------------------------------
+     Global type scale. 1 = the Figma sizes exactly; lower shrinks the
+     whole system in proportion. Every size below derives from it, and
+     line-heights are unitless ratios and tracking is in em, so both
+     follow automatically. This is the only number to change.
+     --------------------------------------------------------------- */
+  --type-scale: 0.9;
+
+  /* UI sizes (Figma: 14 / 16 / 18 / 20 / 24) */
+  --text-xs: calc(0.75rem * var(--type-scale));
+  --text-sm: calc(0.875rem * var(--type-scale));
+  --text-base: calc(1rem * var(--type-scale));
+  --text-lg: calc(1.125rem * var(--type-scale));
+  --text-xl: calc(1.25rem * var(--type-scale));
+  --text-2xl: calc(1.5rem * var(--type-scale));
+
+  /* Display sizes, named by role (Figma: 64 hero, 48 section/cta) */
+  --text-display-hero: clamp(
+    calc(2.25rem * var(--type-scale)),
+    calc(5.5vw * var(--type-scale)),
+    calc(4rem * var(--type-scale))
+  );
+  --text-display-section: clamp(
+    calc(2rem * var(--type-scale)),
+    calc(4vw * var(--type-scale)),
+    calc(3rem * var(--type-scale))
+  );
+  --text-display-cta: clamp(
+    calc(1.75rem * var(--type-scale)),
+    calc(4vw * var(--type-scale)),
+    calc(3rem * var(--type-scale))
+  );
+
+  /* Layout: 1440 frame with 64px gutters -> 1312px content */
+  --spacing-gutter: 64px;
+  --container-frame: 1312px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  /* Anchor targets must clear the sticky navbar (97px at md). */
+  scroll-padding-top: 97px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Shell holds each section to the Figma 1312px content column */
+.frame {
+  width: 100%;
+  max-width: calc(var(--container-frame) + (var(--spacing-gutter) * 2));
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+@media (min-width: 768px) {
+  .frame { padding-inline: var(--spacing-gutter); }
+}
+
+/* ===================================================================
+   Motion
+   Editorial and restrained: short rises and fades, no bounce, no
+   spring. All of it is gated on prefers-reduced-motion — the hiding
+   rules live INSIDE the media query, so a reduced-motion visitor
+   never has content hidden from them in the first place.
+   =================================================================== */
+
+@theme {
+  --ease-reveal: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-reveal: 620ms;
+  --dur-hover: 200ms;
+  /* Slower, fully-eased-out pair for the primary button, so the colour
+     lift reads as a glow coming up rather than a state flip. */
+  --ease-hover: cubic-bezier(0.33, 1, 0.68, 1);
+  --dur-hover-slow: 340ms;
+  /* Long enough for the sheen to read as a pass of light crossing the
+     button, short enough that it lands before the pointer moves on. */
+  --dur-sweep: 700ms;
+  /* One pass of the wipe across a card. */
+  --dur-scan: 540ms;
+}
+
+/* Purely decorative, and it only exists to move — with the animation
+   suppressed there is nothing worth showing, so it stays hidden rather
+   than printing a static orange line across the artwork. */
+.trace-pulse { opacity: 0; }
+
+/* Same reasoning, and it MUST live out here rather than inside the motion
+   query: left in there, a reduced-motion visitor gets fourteen solid orange
+   squares sitting on the grid instead of nothing. */
+.illus-cell { opacity: 0; }
+
+/* ---------------------------------------------------------------
+   Signals plate — the painting's colour blocks, breathing.
+
+   The blocks are flattened into signals-dashboard.png, so they cannot
+   be moved: there is no painting behind them to uncover. They are also
+   not flat fills — each keeps the painting's light and dark showing
+   through, which is a hue/colour composite, not alpha, so the original
+   chroma underneath is gone for good and cannot be solved back out.
+
+   What IS possible is to grow them. An overlay in the SAME hue and
+   saturation, composited with mix-blend-mode: color, is idempotent
+   over the printed block — colour blend takes hue and saturation from
+   the source and luminance from the backdrop, so laying this over an
+   already-green region returns that region unchanged. Beyond the
+   printed edge it tints fresh painting exactly the way the printed
+   block does. So the far edge can travel out to the frame and back
+   with no seam, and the printed footprint stays covered throughout.
+
+   The blocks carry their FULL widths, not just the sliver the dashboard
+   card leaves showing. The card is baked into the same PNG and belongs
+   on top of them, so it is REDRAWN over them: .plate-card paints the
+   same image again, clipped to the card's own rectangle. Clipping the
+   blocks instead would be the obvious move and is a trap — clip-path
+   creates a stacking context, which cuts the blend off from the image
+   underneath and flattens the blocks into solid slabs (measurably: the
+   green's per-channel stddev falls from ~[34,30,16] to ~[4,4,2]). The
+   stacking context .plate-card creates is harmless because it does not
+   blend with anything.
+
+   card top y120, card right x1191 of the 1312 x 960 plate.
+
+   The isolate that keeps this blend off the page behind it goes on the
+   wrapper holding BOTH the image and the blocks. Putting it on the
+   blocks' own container instead makes them blend against an empty box,
+   which throws the backdrop's luminance away and paints flat slabs.
+
+   Geometry is measured off the PNG, not eyeballed: orange sits at
+   x1192-1206 / y180-486 and green at x1207-1311 / y488-794 of its
+   1312x960, and the image renders at 656x480 — the same 1.3667 aspect
+   — so object-cover maps 1:1 and the percentages land exactly.
+   --------------------------------------------------------------- */
+.plate-card {
+  clip-path: polygon(0 12.5%, 90.854% 12.5%, 90.854% 100%, 0 100%);
+}
+.plate-block {
+  position: absolute;
+  mix-blend-mode: color;
+  /* At rest the overlay covers exactly the printed block and, being
+     idempotent, is invisible. Nothing to suppress under reduced motion,
+     which is why there is no hidden base state here. */
+  transform: scaleY(1);
+}
+
+/* The signals list's travelling shine. Base is deliberately empty: the text
+   is plain ink until the animation below takes over, so nothing here can
+   leave it unpainted. See the @supports guard on the animated rule. */
+
+/* ---------------------------------------------------------------
+   Button edge snake.
+
+   A pixel walking the CTA's perimeter, with a tail of dimmer pixels
+   behind it (SNAKE in Button.tsx sets how many, and how fast they
+   fade). It is the only ambient motion on the primary button —
+   the hover sheen is a separate layer and a separate moment — so it
+   rides the very edge rather than crossing the face, and keeps well
+   clear of the label.
+
+   offset-path does the walking: `border-box` is the perimeter of the
+   pixel's containing block, so travel is constant-speed all the way
+   round without anyone having to know the button's width. That box is
+   .btn-snake, inset by half a pixel so the square's OUTER edge lands
+   flush with the button's own — offset-anchor is centred by default,
+   and the button clips its overflow, so an un-inset path would shave
+   every pixel in half. offset-rotate: 0deg keeps it axis-aligned; the
+   default follows the path and would spin the square through the
+   corners.
+
+   Hidden unless offset-path is actually supported: without it the
+   pixels ignore the path entirely and stack up as a static dot in the
+   corner, which reads as a rendering fault rather than as decoration.
+   --------------------------------------------------------------- */
+.btn-snake {
+  --snake-px: 6px;
+  --snake-dur: 3600ms;
+  position: absolute;
+  inset: calc(var(--snake-px) / 2);
+}
+.btn-snake > span {
+  position: absolute;
+  width: var(--snake-px);
+  height: var(--snake-px);
+  background: var(--color-signal-orange-gold);
+  /* Exists only to travel, so nothing is parked on the button when the
+     motion is suppressed. Same reasoning as .trace-pulse above. */
+  opacity: 0;
+  offset-anchor: 50% 50%;
+  offset-rotate: 0deg;
+}
+
+/* The step tag's colour, split off from its label so it can be scaled on its
+   own. Painted by ::before, which is generated first, so it sits under the
+   face. overflow is belt-and-braces now that nothing scales past 1 — it just
+   keeps the two absolutely positioned fills inside the tag. */
+.chip-stretch { overflow: hidden; }
+.chip-stretch::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--chip-bg);
+  transform-origin: left center;
+}
+
+/* One layer of the tag's pixel field: a full-bleed wash of the tag's own fg,
+   punched into a grid by intersecting a column mask with a row mask. Each
+   layer is shifted by half a cell via --cx/--cy, so the four together land on
+   an effective lattice of half the pitch. Invisible at base — it exists only
+   to breathe.
+
+   Size and density are the two knobs, and they live here: --px-size is the
+   pixel, --px-pitch the cell. Gap between pixels is (pitch / 2 - size), so
+   keep size under half the pitch or the layers fuse into a solid wash.
+   --px-size matches .signal-dot's own size-2 (8px), so the background pixels
+   read as the same unit as the dot rather than a finer, unrelated texture. */
+.chip-field {
+  --px-size: 8px;
+  --px-pitch: 32px;
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  opacity: 0;
+  mask-image:
+    repeating-linear-gradient(to right, #000 0 var(--px-size), transparent var(--px-size) var(--px-pitch)),
+    repeating-linear-gradient(to bottom, #000 0 var(--px-size), transparent var(--px-size) var(--px-pitch));
+  mask-composite: intersect;
+  mask-position:
+    calc(var(--cx, 0) * var(--px-pitch) / 2) calc(var(--cy, 0) * var(--px-pitch) / 2);
+}
+
+/* Lifted so the plate passes UNDER the label rather than washing over it:
+   ::after is generated last, so at z-index auto it would paint on top. */
+.chip-face { z-index: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Scroll reveal. JS flips data-shown; --d staggers siblings. */
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(var(--reveal-y, 12px));
+    transition:
+      opacity var(--dur-reveal) var(--ease-reveal) var(--d, 0ms),
+      transform var(--dur-reveal) var(--ease-reveal) var(--d, 0ms);
+  }
+  [data-reveal][data-shown="true"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ---------------------------------------------------------------
+     Hero separation entrance.
+
+     Each block opens from a sliver, sweeps out until it spans the band
+     edge to edge, then contracts onto its mark with a small rebound.
+
+     --s-max and --origin are solved per block so the peak lands exactly
+     on 0%..100% of the composition. A left or right origin can only ever
+     reach one edge, so the origin has to sit inside the block:
+       S = 100 / W          o = L / (W * (S - 1))
+     Only scaleX moves, so the settled position is untouched.
+     --------------------------------------------------------------- */
+  .plate-stretch {
+    animation: plate-stretch 1150ms both;
+    animation-delay: var(--d, 0ms);
+    transform-origin: var(--origin, 50%) center;
+    will-change: transform, opacity;
+  }
+  @keyframes plate-stretch {
+    0% {
+      opacity: 0;
+      transform: scaleX(0);
+      animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+    }
+    10% { opacity: 1; }
+    /* full width of the band */
+    46% {
+      transform: scaleX(var(--s-max));
+      animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+    }
+    80% {
+      transform: scaleX(0.94);
+      animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+    }
+    100% { opacity: 1; transform: scaleX(1); }
+  }
+
+  /* ---------------------------------------------------------------
+     Step tags, in the hero's grammar.
+
+     The Detect / Assess / Act chips are the hero's three separations
+     returning as labels — same orange, blue and green — so they open
+     with the same move: out from a sliver, past the mark, then back
+     onto it. Only the colour scales; the face just fades.
+
+     Departures from .plate-stretch: the origin sits on the left edge
+     rather than being solved inside the block, so the tag reads as
+     dealt out from its dot; and the hero's overshoot-and-rebound is
+     dropped for one eased pass out to the mark, which is what the rest
+     of this file means by "no bounce, no spring". 780ms rather than
+     1150ms — the same duration on an object this small reads sluggish.
+
+     It waits out the card scan above rather than opening with it: the
+     clip hides the tag until the head sweeps past, so starting early
+     would just mean the tag arrives already half-open. Same ordering
+     Problem uses — scan first, then everything on top of it.
+
+     No --i term anywhere: every chip runs the same beat, and scroll
+     position alone spaces them out.
+     --------------------------------------------------------------- */
+  [data-shown="true"] .chip-stretch::before {
+    animation: chip-stretch 780ms var(--ease-reveal) both;
+    animation-delay: calc(var(--d, 0ms) + 660ms);
+  }
+  @keyframes chip-stretch {
+    0%   { opacity: 0; transform: scaleX(0); }
+    10%  { opacity: 1; }
+    100% { opacity: 1; transform: scaleX(1); }
+  }
+
+  /* Once the tag has settled, its pixel field breathes. The four layers
+     share one cycle and are a quarter of it apart, so groups of pixels rise
+     and fall against each other instead of the whole grid pulsing as a
+     block. The delays are positive rather than negative phase offsets, so
+     the field builds up layer by layer after the entrance rather than
+     appearing over a tag that is still opening. */
+  [data-shown="true"] .chip-field {
+    animation: chip-twinkle 2800ms ease-in-out infinite;
+    animation-delay: calc(var(--d, 0ms) + 1600ms + var(--k, 0) * 700ms);
+  }
+  /* Kept well under the dot's own range (1 -> 0.35, see signal-pulse below)
+     even at its brightest, so the field stays a backdrop and the dot is
+     always the brightest thing in the tag. */
+  @keyframes chip-twinkle {
+    0%, 100% { opacity: 0.04; }
+    50%      { opacity: 0.16; }
+  }
+
+  /* Each block reaches for its nearest frame edge and comes back.
+     --grow is how far it has to scale to touch that edge, solved per
+     block from the measurements above; transform-origin is the edge it
+     is anchored to, so it only ever grows AWAY from its own footprint
+     and never uncovers it. --phase spaces the blocks within a plate so
+     one is always arriving as another withdraws: half a cycle for the
+     Signals plate's two, a third for the How-it-works plates' three. */
+  /* Gated on data-shown like .trace-pulse, so a plate does not breathe
+     before it has arrived — and, on the Signals plate, not until the scan
+     has uncovered it. */
+  [data-shown="true"] .plate-block {
+    animation: plate-block 5200ms var(--ease-reveal) infinite;
+    animation-delay: calc(var(--d, 0ms) + 900ms + var(--k, 0) * var(--phase, 2600ms));
+  }
+  @keyframes plate-block {
+    0%,  100% { transform: scaleY(1); }
+    38%, 62%  { transform: scaleY(var(--grow, 1.5)); }
+  }
+
+  /* ---------------------------------------------------------------
+     Signals list — a shine drawn THROUGH the words.
+
+     The button's hover sheen is a pale band laid over a solid fill;
+     the same trick over body copy would just wash the text out. So the
+     gradient is clipped to the glyphs instead: the type paints itself
+     from a band of ink -> blue -> ink that slides across it, which
+     reads as light passing through the words rather than over them.
+
+     background-size is 400% and the travel stays inside 100% -> 0%, and
+     BOTH of those numbers are load-bearing. A percentage position of P
+     puts the image's left edge at (W - 4W) * P/100, so that range keeps
+     the element covered edge to edge at every frame while the blue band
+     (the image's midpoint, so 2W from its left) crosses from -1W to
+     +2W — off the left, through the words, off the right. Let the
+     position leave 0..100 and the image stops covering part of the
+     line; with `color: transparent` those glyphs are not pale, they are
+     GONE. Linear, because a travelling highlight that eases looks like
+     it is sticking.
+
+     Gradient stops are var(--color-ink), NOT currentColor: `color` has
+     to be transparent for the clip to show, and currentColor would
+     resolve to that same transparent and paint nothing at all.
+
+     Guarded on @supports for a real reason, not caution — without
+     background-clip the `color: transparent` would still apply and the
+     copy would be invisible. Everything that makes the text unpainted
+     is inside the guard with the thing that repaints it.
+
+     The colour is per-line: --shine comes in from Signals.tsx, cycling
+     blue -> orange -> green down the list. Only the band's midpoint
+     changes; both ends of the gradient stay ink, so a line is its
+     normal colour except where the light is on it.
+
+     Staggered on --k alone, at exactly a third of the cycle each, so
+     the three take turns in an unbroken round: as one line's band
+     leaves, the next one's is entering. --d is deliberately NOT in
+     this delay — Reveal's own 110ms entrance stagger would drift the
+     three off that third and break the round. The flat 1200ms head
+     start clears the slowest line's entrance instead.
+     --------------------------------------------------------------- */
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    [data-shown="true"] .signal-shine {
+      color: transparent;
+      background-image: linear-gradient(
+        100deg,
+        var(--color-ink) 47%,
+        var(--shine, var(--color-signal-blue)) 50%,
+        var(--color-ink) 53%
+      );
+      background-size: 400% 100%;
+      background-repeat: no-repeat;
+      -webkit-background-clip: text;
+      background-clip: text;
+      animation: signal-shine 2790ms linear infinite;
+      animation-delay: calc(1200ms + var(--k, 0) * 930ms);
+    }
+    /* The pass occupies the first 40% of the cycle; the rest holds at 0%,
+       which parks the band off the right edge with the line still fully
+       painted in ink. That hold is the quiet between shines. */
+    @keyframes signal-shine {
+      0%        { background-position: 100% 0; }
+      40%, 100% { background-position: 0% 0; }
+    }
+  }
+
+  /* The face rides in as the colour contracts onto its mark. */
+  [data-shown="true"] .chip-face {
+    animation: chip-face 400ms var(--ease-reveal) both;
+    animation-delay: calc(var(--d, 0ms) + 960ms);
+  }
+  @keyframes chip-face {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .hero-in {
+    animation: hero-in 900ms var(--ease-reveal) both;
+    animation-delay: var(--d, 0ms);
+  }
+  @keyframes hero-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .hero-plate {
+    animation: hero-plate 1100ms var(--ease-reveal) both;
+  }
+  @keyframes hero-plate {
+    from { opacity: 0; transform: scale(1.06); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* The chip dot is a "signal detected" motif; slow enough to read as
+     alive rather than as a distraction. */
+  .signal-dot { animation: signal-pulse 2.4s ease-in-out infinite; }
+  @keyframes signal-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+
+  /* ---------------------------------------------------------------
+     Connector pulse, traced over the problem-card artwork.
+
+     One dash chased along each line. The gap dwarfs the run, so only
+     ever one pulse is in flight. dashoffset starts a dash-length shy
+     of the line and travels to --trace-run, which is set past the end
+     of that card's longest path; the overshoot is the beat of quiet
+     before the next pulse leaves.
+
+     --trace-start, --trace-run, --trace-gap and --trace-dur come from
+     SignalTrace, and run and dur always keep the same ratio, so every
+     card pulses at one speed and only the distance differs. Lines
+     sharing a start set off together, and the shorter ones simply land
+     first. Where a card's gap is set so that dash + gap equals its path
+     length exactly, the pattern wraps onto itself and that card loops
+     without a quiet beat.
+     --------------------------------------------------------------- */
+  .trace-pulse {
+    opacity: 1;
+    stroke-dasharray: var(--trace-dash, 24px) var(--trace-gap, 600px);
+    /* Parked on the keyframe's own `from` while it waits. Leaving this
+       out lets an un-animated trace default to offset 0, which paints a
+       STATIC orange dash sitting on the line. */
+    stroke-dashoffset: var(--trace-start, 24px);
+    /* Halo in the pulse's own colour — a run that is not orange must not
+       keep an orange glow, or the halo is the only thing you see. */
+    filter: drop-shadow(0 0 3px var(--trace-glow, rgb(255 163 71 / 0.55)));
+  }
+  /* The first lap is the payoff of the entrance, so it waits for the card
+     to land. Declaring the animation only on the shown state — rather than
+     resuming a live one — avoids the edge cases in mutating the delay of an
+     animation that has already started. */
+  [data-shown="true"] .trace-pulse {
+    animation: trace-pulse var(--trace-dur, 2600ms) linear infinite;
+    animation-delay: calc(var(--d, 0ms) + 940ms);
+  }
+  /* The audience illustrations' ambient cells: a faint wash that rises and
+     falls in place rather than travelling, so the quiet geometry around the
+     focus frame reads as alive without competing with the pulse lapping it.
+     Hidden at base — it exists only to breathe, like .trace-pulse itself.
+
+     --k is a distinct phase per cell (see SOC_CELLS), and the stagger is
+     deliberately longer than a single cell's lit window, so only a handful
+     glow at once and the grid flickers instead of throbbing as a block. */
+  [data-shown="true"] .illus-cell {
+    animation: illus-cell 3400ms ease-in-out infinite;
+    animation-delay: calc(var(--d, 0ms) + 900ms + var(--k, 0) * 210ms);
+  }
+  @keyframes illus-cell {
+    0%, 62%, 100% { opacity: 0; }
+    31%           { opacity: 0.26; }
+  }
+
+  /* Both ends must be plain lengths of the same type. A calc() or a
+     unitless var() here makes the browser fall back to DISCRETE
+     interpolation: the dash snaps between the two ends and never
+     travels. --trace-run therefore arrives already negative, in px. */
+  @keyframes trace-pulse {
+    from { stroke-dashoffset: var(--trace-start, 24px); }
+    to   { stroke-dashoffset: var(--trace-run, -260px); }
+  }
+
+  /* ---------------------------------------------------------------
+     Card entrance — the one the whole page uses.
+
+     The plate lands first, then a wipe uncovers the WHOLE card left
+     to right, then the words rise on top of that. Problem's three cards and
+     How-it-works' three steps both enter exactly this way: one motif,
+     one set of timings, so the two sections read as the same hand.
+     Problem adds its connector pulse afterwards and How-it-works its
+     tag stretch, but the entrance underneath them is shared.
+
+     One `data-shown` flip on the card drives all of it.
+
+     Every delay is composed against --d, the per-card stagger Reveal
+     sets inline. data-shown flips at the SAME instant on all three
+     Problem cards, so a bare delay here would animate three interiors
+     in lockstep while only their plates staggered. (How-it-works pins
+     its steps one at a time, so each flips on its own anyway and
+     leaves --d at 0.)
+     --------------------------------------------------------------- */
+
+  /* .card-scan wraps the whole card's CONTENT — image, title and body,
+     which are clipped and sweep in together — but deliberately not the
+     card's own background. That is why it is an inner div and not the
+     element Reveal observes: the sand plate lands first and sits there
+     empty while its contents wipe across it. Clip both together and the
+     card would appear out of nothing instead. */
+  .card-scan { clip-path: inset(0 100% 0 0); }
+  [data-shown="true"] .card-scan {
+    animation: card-scan var(--dur-scan) var(--ease-reveal) both;
+    animation-delay: calc(var(--d, 0ms) + 120ms);
+  }
+  @keyframes card-scan {
+    to { clip-path: inset(0 0 0 0); }
+  }
+
+  .card-line > span { display: block; transform: translateY(100%); }
+  [data-shown="true"] .card-line > span {
+    animation: card-line 520ms var(--ease-reveal) both;
+    animation-delay: calc(var(--d, 0ms) + 760ms);
+  }
+  @keyframes card-line {
+    to { transform: none; }
+  }
+
+  /* Ends at a full opacity 1, so the 70% must come from the text colour
+     rather than from element opacity — otherwise this keyframe would
+     quietly wash the body copy back up to solid ink. */
+  .card-body { opacity: 0; transform: translateY(8px); }
+  [data-shown="true"] .card-body {
+    animation: card-body 520ms var(--ease-reveal) both;
+    animation-delay: calc(var(--d, 0ms) + 860ms);
+  }
+  @keyframes card-body {
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ---------------------------------------------------------------
+     Button edge snake, in motion. See .btn-snake above for the path.
+
+     One lap, linear, forever — an even walk is the whole read, and any
+     easing would make it lurch at the corners.
+
+     --k is the position in the trail, 0 being the head. The delay is
+     one full lap negative, offset FORWARD by --k, so every pixel is
+     already mid-lap on the first frame (no start-up stack in the
+     corner) and each follower sits 70ms behind the one ahead of it —
+     about 10px of path at this size, so the four read as one trail
+     with a pixel's worth of gap rather than as scattered dots. Sign matters: elapsed time is the negation of the delay, so
+     adding --k here subtracts from its progress, which is what puts a
+     follower behind rather than in front.
+
+     Brightness falls off down the trail, and the head alone is solid,
+     so it reads as one pixel with a wake instead of four pixels in a
+     queue.
+     --------------------------------------------------------------- */
+  @supports (offset-path: border-box) {
+    .btn-snake > span {
+      offset-path: border-box;
+      opacity: var(--snake-o, 1);
+      animation: btn-snake var(--snake-dur) linear infinite;
+      animation-delay: calc(var(--k, 0) * 70ms - var(--snake-dur));
+    }
+    @keyframes btn-snake {
+      from { offset-distance: 0%; }
+      to   { offset-distance: 100%; }
+    }
+  }
+}
+
+/* ===================================================================
+   How-it-works stack
+
+   The three steps pin one after another: each stops under the navbar
+   and the next scrolls up over it, so the section deals itself out as
+   a deck rather than scrolling past as a list.
+
+   Each step needs its own opaque bg to occlude the one beneath. The
+   wrapper behind it is the same sand, so the only thing separating a
+   stacked sliver from the card above it is the soft upward shadow —
+   deliberately no rule, which read as hard beige lines. Later siblings
+   paint over earlier ones in DOM order, so no z-index is needed.
+
+   Desktop only. Below md the steps go single-column and run taller
+   than the viewport, and a sticky box taller than its scrollport
+   never pins — it just scrolls, so the effect would be dead weight.
+   =================================================================== */
+@media (min-width: 768px) {
+  /* The heading pins first and stays put for the whole section, so the
+     steps deal themselves out underneath a label that never leaves.
+     A positive z-index is required: the steps come later in the DOM, so
+     at z-auto they would paint over the heading instead of under it. */
+  .how-head {
+    position: sticky;
+    top: 97px;
+    z-index: 20;
+  }
+
+  .how-step {
+    position: sticky;
+    /* Navbar, then the pinned heading band, then 14px per step so each
+       stops short of the last. The band is the heading's own font size
+       (it is set leading-none) plus its 20px pad — read straight off the
+       theme, so this tracks the clamp() that fluidly sizes the heading
+       from 28.8px to 43.2px instead of drifting against a fixed guess. */
+    top: calc(97px + var(--text-display-section) + 20px + var(--i, 0) * 14px);
+  }
+}
+
+/* Without JS the reveal never fires, so make sure nothing stays hidden. */
