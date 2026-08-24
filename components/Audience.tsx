@@ -1,4 +1,5 @@
 import AudienceTrace, { type AudienceTraceName } from "./AudienceTrace";
+import HoverWords from "./HoverWords";
 import SectionHeading from "./SectionHeading";
 import Reveal from "./Reveal";
 import { asset } from "@/lib/asset";
@@ -43,7 +44,7 @@ export default function Audience() {
     >
       <Reveal className="w-full">
         <SectionHeading
-          title="For the team that would rather see it coming."
+          title={<HoverWords>For the team that would rather see it coming.</HoverWords>}
           titleClassName="max-w-[631px]"
           kicker="One line of sight for everyone doing the watching"
           cta={{ label: "Sign up", href: "#signup" }}
