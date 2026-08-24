@@ -21,7 +21,8 @@
  *
  * Accents cycle orange -> blue -> green, the same three signals HoverWords
  * runs through the headings, so a letter here answers the pointer in the same
- * voice a word up the page does.
+ * voice a word up the page does. The fill lives in .wordmark-glyph rather
+ * than a Tailwind hover: utility — see the note in globals.css.
  */
 const ACCENTS = [
   "var(--color-signal-orange)",
@@ -114,8 +115,14 @@ export default function FooterWordmark({ className = "" }: { className?: string 
       {GLYPHS.map(({ name, hit, d }, i) => (
         <g
           key={name}
-          style={{ "--accent": ACCENTS[i % ACCENTS.length] } as React.CSSProperties}
-          className="fill-[var(--color-rule)] transition-[fill] duration-(--dur-hover) ease-out hover:fill-[var(--accent)]"
+          style={
+            {
+              "--accent": ACCENTS[i % ACCENTS.length],
+              "--i": i,
+              "--n": GLYPHS.length,
+            } as React.CSSProperties
+          }
+          className="wordmark-glyph"
         >
           {/* The band the pointer actually hits. fill="none" is the rect's own
               presentation attribute, so it is not touched by the fill rule on

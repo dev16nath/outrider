@@ -139,6 +139,61 @@ body {
 .illus-cell { opacity: 0; }
 
 /* ---------------------------------------------------------------
+   Word and letter accents.
+
+   Hand-written rather than Tailwind's hover: variant, because Tailwind v4
+   compiles every hover: utility inside @media (hover: hover). That query
+   describes the PRIMARY pointer, so a laptop with a touchscreen answers
+   "no" while a mouse is plugged into it, and the accents silently vanish
+   on an ordinary desktop. Sticky hover — the thing the gate exists to
+   prevent — costs nothing here: this changes one colour and moves no
+   layout, and a tap elsewhere clears it.
+
+   --accent is set per word / per letter by the component.
+   --------------------------------------------------------------- */
+.hover-accent { transition: color var(--dur-hover) ease-out; }
+.hover-accent:hover { color: var(--accent); }
+
+.wordmark-glyph {
+  fill: var(--color-rule);
+  transition: fill var(--dur-hover) ease-out;
+}
+.wordmark-glyph:hover { fill: var(--accent); }
+
+/* With no pointer at all, the accents run themselves: one word lit at a
+   time, in the order and the three colours a cursor would have walked
+   through. --n is the count, so the cycle always gives every item exactly
+   one turn whatever the heading's length. The lit window is 10% of the
+   cycle, which stays shorter than the 1/n stagger for everything on the
+   page (6 to 9 words, 9 letters), so two are never lit at once.
+
+   any-hover, not hover: `hover` describes the primary pointer only, so on
+   a touchscreen laptop it says "none" while a mouse is plugged in — the
+   same misreport that broke the hover in the first place. This cycle would
+   then run on a machine that can hover perfectly well and, since animations
+   outrank normal declarations, it would override the cursor rather than
+   defer to it. `any-hover` asks whether ANY input can hover, so the loop
+   is confined to devices where nothing can. */
+@media (any-hover: none) and (prefers-reduced-motion: no-preference) {
+  .hover-accent {
+    animation: hover-accent calc(var(--n, 1) * 620ms) linear infinite;
+    animation-delay: calc(var(--i, 0) * 620ms);
+  }
+  .wordmark-glyph {
+    animation: wordmark-glyph calc(var(--n, 1) * 620ms) linear infinite;
+    animation-delay: calc(var(--i, 0) * 620ms);
+  }
+}
+@keyframes hover-accent {
+  0%, 10%, 100% { color: var(--color-ink); }
+  2%,  8%       { color: var(--accent); }
+}
+@keyframes wordmark-glyph {
+  0%, 10%, 100% { fill: var(--color-rule); }
+  2%,  8%       { fill: var(--accent); }
+}
+
+/* ---------------------------------------------------------------
    Signals plate — the painting's colour blocks, breathing.
 
    The blocks are flattened into signals-dashboard.png, so they cannot
